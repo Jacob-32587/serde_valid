@@ -122,3 +122,53 @@ fn serde_rename_enume_is_err() {
         })
     );
 }
+
+#[test]
+fn serde_rename_all_struct_is_err() {
+    #[derive(Debug, Validate, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct TestStruct {
+        #[validate(maximum = 100)]
+        my_val: i32,
+    }
+
+    let err = TestStruct::from_json_value(json!({ "value": 123 })).unwrap_err();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&err.to_string()).unwrap(),
+        json!({
+            "errors": [],
+            "properties": {
+                "myVal": {
+                    "errors": ["The number must be `<= 100`."]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn serde_rename_all_enum_is_err() {
+    #[derive(Debug, Validate, Deserialize)]
+    #[serde(rename_all = "kebab-case")]
+    enum TestEnum {
+        Struct {
+            #[validate(maximum = 100)]
+            my_val: i32,
+        },
+    }
+
+    let err = TestEnum::from_json_value(json!({ "Struct": { "value": 123 } })).unwrap_err();
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&err.to_string()).unwrap(),
+        json!({
+            "errors": [],
+            "properties": {
+                "my-val": {
+                    "errors": ["The number must be `<= 100`."]
+                }
+            }
+        })
+    );
+}

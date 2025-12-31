@@ -16,14 +16,15 @@ pub fn collect_serde_rename_map(
         .find(|x| x.path().is_ident("serde"))
         .into_iter()
         .next();
+    let mut renames = RenameMap::new();
 
     let rename_rule = if let Some(serde_attribute) = maybe_serde_attribute {
         let mut rule = super::case::RenameRule::None;
         serde_attribute
             .parse_nested_meta(|meta| {
                 if meta.path.is_ident("rename_all") {
-                    let (_, de) = super::attr::get_ser_and_de_rename(&meta)?;
-                    if let Some(de) = de {
+                    if let Ok((_, Some(de))) = super::attr::get_ser_and_de_rename(&meta) {
+                        // renames.insert(format!("Found ser and de rename, {de}"), quote!());
                         if let Some(found_rule) = super::case::RenameRule::from_str(&de) {
                             rule = found_rule;
                         }
@@ -37,7 +38,6 @@ pub fn collect_serde_rename_map(
         super::case::RenameRule::None
     };
 
-    let mut renames = RenameMap::new();
     for field in fields.named.iter() {
         let named_field = NamedField::new(field);
         for attribute in named_field.attrs() {

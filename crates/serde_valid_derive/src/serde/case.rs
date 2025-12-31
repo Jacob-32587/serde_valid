@@ -2,7 +2,6 @@
 //! case of the source (e.g. `my-field`, `MY_FIELD`).
 
 use self::RenameRule::*;
-use std::fmt::{self, Debug, Display};
 
 /// The different possible ways to change case of fields in a struct, or variants in an enum.
 #[derive(Copy, Clone, PartialEq)]
@@ -76,6 +75,10 @@ impl RenameRule {
         }
     }
 
+    pub fn will_variant_change(self) -> bool {
+        !matches!(self, None | PascalCase)
+    }
+
     /// Apply a renaming rule to a struct field, returning the version expected in the source.
     pub fn apply_to_field(self, field: &str) -> String {
         match self {
@@ -105,23 +108,8 @@ impl RenameRule {
             ScreamingKebabCase => ScreamingSnakeCase.apply_to_field(field).replace('_', "-"),
         }
     }
-}
 
-pub struct ParseError<'a> {
-    unknown: &'a str,
-}
-
-impl<'a> Display for ParseError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("unknown rename rule `rename_all = ")?;
-        Debug::fmt(self.unknown, f)?;
-        f.write_str("`, expected one of ")?;
-        for (i, (name, _rule)) in RENAME_RULES.iter().enumerate() {
-            if i > 0 {
-                f.write_str(", ")?;
-            }
-            Debug::fmt(name, f)?;
-        }
-        Ok(())
+    pub fn will_field_change(self) -> bool {
+        !matches!(self, None | LowerCase | SnakeCase)
     }
 }

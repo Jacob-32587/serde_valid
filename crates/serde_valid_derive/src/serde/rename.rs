@@ -6,13 +6,57 @@ use quote::{quote, ToTokens};
 
 pub type RenameMap = HashMap<String, TokenStream>;
 
-pub fn collect_serde_rename_map(fields: &syn::FieldsNamed) -> RenameMap {
+pub fn collect_serde_rename_map(
+    container_attributes: &[syn::Attribute],
+    fields: &syn::FieldsNamed,
+    is_container_enum: bool,
+) -> RenameMap {
+    let maybe_serde_attribute = container_attributes
+        .iter()
+        .find(|x| x.path().is_ident("serde"))
+        .into_iter()
+        .next();
+
+    let rename_rule = if let Some(serde_attribute) = maybe_serde_attribute {
+        let mut rule = super::case::RenameRule::None;
+        serde_attribute
+            .parse_nested_meta(|meta| {
+                if meta.path.is_ident("rename_all") {
+                    let (_, de) = super::attr::get_ser_and_de_rename(&meta)?;
+                    if let Some(de) = de {
+                        if let Some(found_rule) = super::case::RenameRule::from_str(&de) {
+                            rule = found_rule;
+                        }
+                    };
+                };
+                Ok(())
+            })
+            .ok();
+        rule
+    } else {
+        super::case::RenameRule::None
+    };
+
     let mut renames = RenameMap::new();
     for field in fields.named.iter() {
         let named_field = NamedField::new(field);
         for attribute in named_field.attrs() {
             if attribute.path().is_ident("serde") {
                 if let Some(rename) = find_rename_from_serde_attributes(attribute) {
+                    renames.insert(
+                        field.ident.to_token_stream().to_string(),
+                        quote!(std::borrow::Cow::from(#rename)),
+                    );
+                } else if is_container_enum && rename_rule.will_variant_change() {
+                    let rename =
+                        rename_rule.apply_to_variant(&field.ident.to_token_stream().to_string());
+                    renames.insert(
+                        field.ident.to_token_stream().to_string(),
+                        quote!(std::borrow::Cow::from(#rename)),
+                    );
+                } else if !is_container_enum && rename_rule.will_field_change() {
+                    let rename =
+                        rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
                     renames.insert(
                         field.ident.to_token_stream().to_string(),
                         quote!(std::borrow::Cow::from(#rename)),

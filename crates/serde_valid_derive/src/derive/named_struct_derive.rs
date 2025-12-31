@@ -14,7 +14,7 @@ pub fn expand_named_struct_derive(
 ) -> Result<TokenStream, crate::Errors> {
     let ident = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    let rename_map = collect_serde_rename_map(fields);
+    let rename_map = collect_serde_rename_map(&input.attrs, fields, false);
 
     let mut warnings = vec![];
     let mut errors = vec![];

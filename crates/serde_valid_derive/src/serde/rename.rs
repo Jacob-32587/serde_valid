@@ -7,17 +7,34 @@ use quote::{quote, ToTokens};
 
 pub type RenameMap = HashMap<String, TokenStream>;
 
-pub fn collect_serde_rename_map(
+pub fn collect_serde_rename_map(fields: &syn::FieldsNamed) -> RenameMap {
+    let mut renames = RenameMap::new();
+    for field in fields.named.iter() {
+        let named_field = NamedField::new(field);
+        for attribute in named_field.attrs() {
+            if attribute.path().is_ident("serde") {
+                if let Some(rename) = find_rename_from_serde_attributes(attribute) {
+                    renames.insert(
+                        field.ident.to_token_stream().to_string(),
+                        quote!(std::borrow::Cow::from(#rename)),
+                    );
+                }
+            }
+        }
+    }
+    renames
+}
+
+pub fn update_serde_rename_all_struct_fields(
+    renames: &mut RenameMap,
     container_attributes: &[syn::Attribute],
     fields: &syn::FieldsNamed,
-    is_container_enum: bool,
-) -> RenameMap {
+) {
     let maybe_serde_attribute = container_attributes
         .iter()
         .find(|x| x.path().is_ident("serde"))
         .into_iter()
         .next();
-    let mut renames = RenameMap::new();
 
     let rename_rule = if let Some(serde_attribute) = maybe_serde_attribute {
         let mut rule = RenameRule::None;
@@ -38,33 +55,62 @@ pub fn collect_serde_rename_map(
         RenameRule::None
     };
 
-    for field in fields.named.iter() {
-        let named_field = NamedField::new(field);
-        for attribute in named_field.attrs() {
-            if attribute.path().is_ident("serde") {
-                if let Some(rename) = find_rename_from_serde_attributes(attribute) {
-                    renames.insert(
-                        field.ident.to_token_stream().to_string(),
-                        quote!(std::borrow::Cow::from(#rename)),
-                    );
-                }
-            } else if is_container_enum && rename_rule.will_variant_change() {
-                let rename =
-                    rename_rule.apply_to_variant(&field.ident.to_token_stream().to_string());
-                renames.insert(
-                    field.ident.to_token_stream().to_string(),
-                    quote!(std::borrow::Cow::from(#rename)),
-                );
-            } else if !is_container_enum && rename_rule.will_field_change() {
-                let rename = rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
-                renames.insert(
-                    field.ident.to_token_stream().to_string(),
-                    quote!(std::borrow::Cow::from(#rename)),
-                );
-            }
-        }
+    if !rename_rule.will_field_change() {
+        return;
     }
-    renames
+    for field in fields.named.iter() {
+        let ident_str = field.ident.to_token_stream().to_string();
+        if renames.contains_key(&ident_str) {
+            continue;
+        }
+        let rename = rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
+        renames.insert(ident_str, quote!(std::borrow::Cow::from(#rename)));
+    }
+}
+
+pub fn update_serde_rename_enum(
+    renames: &mut RenameMap,
+    container_attributes: &[syn::Attribute],
+    variant_attributes: &[syn::Attribute],
+    fields: &syn::FieldsNamed,
+) {
+    let maybe_serde_attribute = container_attributes
+        .iter()
+        .find(|x| x.path().is_ident("serde"))
+        .into_iter()
+        .next();
+
+    let rename_rule = if let Some(serde_attribute) = maybe_serde_attribute {
+        let mut rule = RenameRule::None;
+        serde_attribute
+            .parse_nested_meta(|meta| {
+                if meta.path.is_ident("rename_all_fields") {
+                    if let Ok((_, Some(de))) = get_ser_and_de_rename(&meta) {
+                        if let Some(found_rule) = RenameRule::from_str(&de) {
+                            rule = found_rule;
+                        }
+                    };
+                };
+                Ok(())
+            })
+            .ok();
+        rule
+    } else {
+        RenameRule::None
+    };
+
+    update_serde_rename_all_struct_fields(renames, variant_attributes, fields);
+    if !rename_rule.will_field_change() {
+        return;
+    }
+    for field in fields.named.iter() {
+        let ident_str = field.ident.to_token_stream().to_string();
+        if renames.contains_key(&ident_str) {
+            continue;
+        }
+        let rename = rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
+        renames.insert(ident_str, quote!(std::borrow::Cow::from(#rename)));
+    }
 }
 
 fn find_rename_from_serde_attributes(attribute: &syn::Attribute) -> Option<TokenStream> {

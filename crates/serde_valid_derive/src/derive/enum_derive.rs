@@ -3,7 +3,7 @@ use super::unnamed_struct_derive::collect_unnamed_fields_validators_list;
 use crate::attribute::variant_validate::collect_variant_custom_from_variant;
 use crate::attribute::Validator;
 use crate::error::{array_errors_tokens, new_type_errors_tokens, object_errors_tokens};
-use crate::serde::rename::collect_serde_rename_map;
+use crate::serde::rename::{collect_serde_rename_map, update_serde_rename_enum};
 use crate::types::CommaSeparatedTokenStreams;
 use crate::warning::WithWarnings;
 use proc_macro2::TokenStream;
@@ -95,7 +95,8 @@ fn expand_enum_variant_named_fields_validation(
 
     let variant_ident = &variant.ident;
     let mut fields_idents = CommaSeparatedTokenStreams::new();
-    let rename_map = collect_serde_rename_map(&input.attrs, named_fields, true);
+    let mut rename_map = collect_serde_rename_map(named_fields);
+    update_serde_rename_enum(&mut rename_map, &input.attrs, &variant.attrs, named_fields);
 
     let enum_validates = match collect_variant_custom_from_variant(&input.attrs) {
         Ok(validations) => {

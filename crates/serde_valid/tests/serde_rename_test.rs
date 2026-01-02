@@ -82,7 +82,7 @@ fn serde_rename_deserialize_is_err() {
 }
 
 #[test]
-fn serde_rename_enume_is_ok() {
+fn serde_rename_enum_is_ok() {
     #[derive(Debug, Validate, Deserialize)]
     enum TestEnum {
         Struct {
@@ -98,7 +98,7 @@ fn serde_rename_enume_is_ok() {
 }
 
 #[test]
-fn serde_rename_enume_is_err() {
+fn serde_rename_enum_is_err() {
     #[derive(Debug, Validate, Deserialize)]
     enum TestEnum {
         Struct {
@@ -168,6 +168,33 @@ fn serde_rename_all_enum_is_err() {
             "errors": [],
             "properties": {
                 "my-val": {
+                    "errors": ["The number must be `<= 100`."]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn serde_rename_all_enum_container_only_is_err() {
+    #[derive(Debug, Validate, Deserialize)]
+    #[serde(rename_all = "UPPERCASE")]
+    enum TestEnum {
+        Struct {
+            #[validate(maximum = 100)]
+            my_val: i32,
+        },
+    }
+
+    let err = TestEnum::from_json_value(json!({ "STRUCT": { "my_val": 101 } })).unwrap_err();
+    println!("{:#?}", err);
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&err.to_string()).unwrap(),
+        json!({
+            "errors": [],
+            "properties": {
+                "my_val": {
                     "errors": ["The number must be `<= 100`."]
                 }
             }

@@ -1,7 +1,9 @@
 use crate::attribute::field_validate::{extract_field_validator, FieldValidators};
 use crate::attribute::struct_validate::collect_struct_custom_from_named_struct;
 use crate::error::object_errors_tokens;
-use crate::serde::rename::{collect_serde_rename_map, RenameMap};
+use crate::serde::rename::{
+    collect_serde_rename_map, update_serde_rename_all_struct_fields, RenameMap,
+};
 use crate::types::{Field, NamedField};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -14,7 +16,8 @@ pub fn expand_named_struct_derive(
 ) -> Result<TokenStream, crate::Errors> {
     let ident = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    let rename_map = collect_serde_rename_map(&input.attrs, fields, false);
+    let mut rename_map = collect_serde_rename_map(fields);
+    update_serde_rename_all_struct_fields(&mut rename_map, &input.attrs, fields);
 
     let mut warnings = vec![];
     let mut errors = vec![];

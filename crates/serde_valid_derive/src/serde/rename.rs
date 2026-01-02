@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::{attr::get_ser_and_de_rename, case::RenameRule};
 use crate::types::{CommaSeparatedMetas, Field, NamedField};
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
@@ -19,13 +20,12 @@ pub fn collect_serde_rename_map(
     let mut renames = RenameMap::new();
 
     let rename_rule = if let Some(serde_attribute) = maybe_serde_attribute {
-        let mut rule = super::case::RenameRule::None;
+        let mut rule = RenameRule::None;
         serde_attribute
             .parse_nested_meta(|meta| {
                 if meta.path.is_ident("rename_all") {
-                    if let Ok((_, Some(de))) = super::attr::get_ser_and_de_rename(&meta) {
-                        // renames.insert(format!("Found ser and de rename, {de}"), quote!());
-                        if let Some(found_rule) = super::case::RenameRule::from_str(&de) {
+                    if let Ok((_, Some(de))) = get_ser_and_de_rename(&meta) {
+                        if let Some(found_rule) = RenameRule::from_str(&de) {
                             rule = found_rule;
                         }
                     };
@@ -35,7 +35,7 @@ pub fn collect_serde_rename_map(
             .ok();
         rule
     } else {
-        super::case::RenameRule::None
+        RenameRule::None
     };
 
     for field in fields.named.iter() {

@@ -47,21 +47,20 @@ pub fn collect_serde_rename_map(
                         field.ident.to_token_stream().to_string(),
                         quote!(std::borrow::Cow::from(#rename)),
                     );
-                } else if is_container_enum && rename_rule.will_variant_change() {
-                    let rename =
-                        rename_rule.apply_to_variant(&field.ident.to_token_stream().to_string());
-                    renames.insert(
-                        field.ident.to_token_stream().to_string(),
-                        quote!(std::borrow::Cow::from(#rename)),
-                    );
-                } else if !is_container_enum && rename_rule.will_field_change() {
-                    let rename =
-                        rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
-                    renames.insert(
-                        field.ident.to_token_stream().to_string(),
-                        quote!(std::borrow::Cow::from(#rename)),
-                    );
                 }
+            } else if is_container_enum && rename_rule.will_variant_change() {
+                let rename =
+                    rename_rule.apply_to_variant(&field.ident.to_token_stream().to_string());
+                renames.insert(
+                    field.ident.to_token_stream().to_string(),
+                    quote!(std::borrow::Cow::from(#rename)),
+                );
+            } else if !is_container_enum && rename_rule.will_field_change() {
+                let rename = rename_rule.apply_to_field(&field.ident.to_token_stream().to_string());
+                renames.insert(
+                    field.ident.to_token_stream().to_string(),
+                    quote!(std::borrow::Cow::from(#rename)),
+                );
             }
         }
     }
